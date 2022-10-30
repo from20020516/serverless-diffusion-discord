@@ -77,11 +77,12 @@ export const handler: ProxyHandler = async ({ headers, body }) => {
       if (name === 'ai') {
         const request = {
           prompt: options.find(option => option.name === 'prompt')?.value,
-          seed: options.find(option => option.name === 'seed')?.value,
+          init_image: ((id) => id ? resolved?.attachments[id].url : undefined)(options.find(option => option.name === 'init-image')?.value),
+          model: options.find(option => option.name === 'model')?.value,
           num_inference_steps: options.find(option => option.name === 'num-inference-steps')?.value,
           guidance_scale: options.find(option => option.name === 'guidance-scale')?.value,
-          init_image: ((id) => id ? resolved?.attachments[id].url : undefined)(options.find(option => option.name === 'init-image')?.value),
           mask: ((id) => id ? resolved?.attachments[id].url : undefined)(options.find(option => option.name === 'mask')?.value),
+          seed: options.find(option => option.name === 'seed')?.value,
           s3_bucket_name: bucketName,
           s3_object_name: `output/${guild_id}/${channel_id}/${user.id}/${id}`,
         }
