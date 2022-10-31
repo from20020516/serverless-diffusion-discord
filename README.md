@@ -1,14 +1,18 @@
-# Welcome to your CDK TypeScript project
+# serverless-diffusion-discord
 
-This is a blank project for CDK development with TypeScript.
+Stable Diffusion Discord Bot interface.
 
-The `cdk.json` file tells the CDK Toolkit how to execute your app.
+![infrastructure](./README.drawio.png)
 
-## Useful commands
 
-* `npm run build`   compile typescript to js
-* `npm run watch`   watch for changes and compile
-* `npm run test`    perform the jest unit tests
-* `cdk deploy`      deploy this stack to your default AWS account/region
-* `cdk diff`        compare deployed stack with current state
-* `cdk synth`       emits the synthesized CloudFormation template
+1. [Create your Discord App](https://discord.com/developers/applications).
+2. Create your AWS resources.
+
+```
+npm install
+npm run cdk deploy -c publicKey=$DISCORD_APP_PUBLIC_KEY -c botToken=$DISCORD_APP_BOT_TOKEN
+```
+
+3. Add `imageRequestHandler` function url (https://*.lambda-url.REGION.on.aws) to App `INTERACTIONS ENDPOINT URL`.
+4. Add Discord App to your server with `bot` scope.
+5. use `/ai` command in your server channel. enjoy!
