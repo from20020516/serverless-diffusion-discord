@@ -1,5 +1,5 @@
 import { ProxyHandler } from 'aws-lambda'
-import { StepFunctions } from 'aws-sdk'
+import { Lambda } from 'aws-sdk'
 import { APIEmbed, GuildMember } from 'discord.js'
 import { verifyKey, InteractionResponseType, InteractionType } from 'discord-interactions'
 
@@ -57,10 +57,10 @@ type APPLICATION_COMMAND = {
   version: number
 }
 
-export type ImageRequestHandlerEnv = { region: string, stateMachineArn: string, bucketName: string, publicKey: string }
+export type ImageRequestHandlerEnv = { region: string, FunctionName: string, bucketName: string, publicKey: string }
 export const handler: ProxyHandler = async ({ headers, body }) => {
   try {
-    const { publicKey, region, stateMachineArn, bucketName } = process.env as ImageRequestHandlerEnv
+    const { publicKey, region, FunctionName, bucketName } = process.env as ImageRequestHandlerEnv
     const signature = headers['x-signature-ed25519']
     const timestamp = headers['x-signature-timestamp']
 
@@ -87,11 +87,8 @@ export const handler: ProxyHandler = async ({ headers, body }) => {
           s3_object_name: `output/${guild_id}/${channel_id}/${user.id}/${id}`,
         }
         if (request.prompt) {
-          const commands = Object.entries(request)
-            .flatMap(([key, value]) => value ? [`--${key.replaceAll('_', '-')}`, String(value)] : [])
-
-          await new StepFunctions({ region, logger: console })
-            .startExecution({ stateMachineArn: stateMachineArn!, input: JSON.stringify({ commands }) }).promise()
+          await new Lambda({ region, logger: console })
+            .invokeAsync({ FunctionName, InvokeArgs: JSON.stringify(request) }).promise()
 
           const embeds: APIEmbed[] = []
           request.init_image && embeds.push({ title: 'init-image', image: { url: request.init_image } })
