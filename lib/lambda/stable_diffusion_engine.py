@@ -1,10 +1,7 @@
 import inspect
 import numpy as np
-# openvino
 from openvino.runtime import Core
-# tokenizer
 from transformers import CLIPTokenizer
-# utils
 from tqdm import tqdm
 from huggingface_hub import hf_hub_download
 from diffusers import LMSDiscreteScheduler, PNDMScheduler
@@ -99,6 +96,7 @@ class StableDiffusionEngine:
     def __call__(
             self,
             prompt,
+            negative_prompt = "",
             init_image = None,
             mask = None,
             strength = 0.5,
@@ -120,7 +118,7 @@ class StableDiffusionEngine:
         # do classifier free guidance
         if guidance_scale > 1.0:
             tokens_uncond = self.tokenizer(
-                "",
+                negative_prompt,
                 padding="max_length",
                 max_length=self.tokenizer.model_max_length,
                 truncation=True

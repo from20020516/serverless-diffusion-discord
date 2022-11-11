@@ -6,95 +6,78 @@ import {
   StackProps,
   aws_ec2 as ec2,
   aws_ecr_assets as ecra,
-  aws_ecs as ecs,
   aws_efs as efs,
   aws_iam as iam,
   aws_lambda as lambda,
-  aws_logs as logs,
   aws_s3 as s3,
   aws_s3_notifications as s3n,
-  aws_stepfunctions as sfn,
-  aws_stepfunctions_tasks as sfnt,
 } from 'aws-cdk-lib'
 import { Construct } from 'constructs'
 import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs'
 import { ImageRequestHandlerEnv } from './serverless-diffusion-discord-stack.image-request'
 import { ImageResponseHandlerEnv } from './serverless-diffusion-discord-stack.image-response'
 
+interface ServerlessDiffusionDiscordStackProps extends StackProps {
+  vpc: ec2.IVpc
+  securityGroup: ec2.ISecurityGroup
+}
 export class ServerlessDiffusionDiscordStack extends Stack {
-  constructor(scope: Construct, id: string, props?: StackProps) {
+  constructor(scope: Construct, id: string, props?: ServerlessDiffusionDiscordStackProps) {
     super(scope, id, props)
 
+    const { vpc, securityGroup } = props!
+
     const bucket = new s3.Bucket(this, 'Bucket', { autoDeleteObjects: true, removalPolicy: RemovalPolicy.DESTROY })
-    const cluster = new ecs.Cluster(this, 'Cluster', { vpc: ec2.Vpc.fromLookup(this, 'VPC', { isDefault: true }) })
-    const logGroup = new logs.LogGroup(this, 'LogGroup', { logGroupName: cluster.clusterName, removalPolicy: RemovalPolicy.DESTROY, retention: logs.RetentionDays.ONE_WEEK })
-
-    const securityGroup = new ec2.SecurityGroup(this, 'SecurityGroup', { vpc: cluster.vpc, allowAllOutbound: true })
-    securityGroup.addIngressRule(securityGroup, ec2.Port.allTraffic())
-
     const fs = new efs.FileSystem(this, 'FileSystem', {
-      vpc: cluster.vpc,
-      vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
+      vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
       removalPolicy: RemovalPolicy.DESTROY,
       securityGroup,
     })
-    const ap = fs.addAccessPoint('AccessPoint', { path: '/' })
-    const volume: ecs.Volume = {
-      name: 'efs-volume',
-      efsVolumeConfiguration: {
-        authorizationConfig: {
-          accessPointId: ap.accessPointId,
-          iam: 'DISABLED',
-        },
-        fileSystemId: fs.fileSystemId,
-        transitEncryption: 'ENABLED',
+    const ap = fs.addAccessPoint('AccessPoint', {
+      path: '/huggingface',
+      posixUser: {
+        uid: '1000',
+        gid: '1000'
       },
-    }
-
-    const taskDefinition = new ecs.TaskDefinition(this, 'TaskDefinition', {
-      compatibility: ecs.Compatibility.FARGATE,
-      cpu: '16384',
-      memoryMiB: '122880',
-      runtimePlatform: {
-        /** https://www.intel.co.jp/content/www/jp/ja/internet-of-things/openvino-toolkit.html */
-        cpuArchitecture: ecs.CpuArchitecture.X86_64,
-      },
-      volumes: [volume],
+      createAcl: {
+        ownerUid: '1000',
+        ownerGid: '1000',
+        permissions: '755'
+      }
     })
-    bucket.grantWrite(taskDefinition.taskRole)
+    ap.applyRemovalPolicy(RemovalPolicy.DESTROY)
 
-    const containerDefinition = taskDefinition.addContainer('Container', {
-      image: ecs.ContainerImage.fromAsset('lib/container/', {
+    const imageHandler = new lambda.DockerImageFunction(this, 'StableDiffusion', {
+      code: lambda.DockerImageCode.fromImageAsset('lib/lambda/', {
         platform: ecra.Platform.LINUX_AMD64,
+        file: 'Dockerfile',
         ignoreMode: IgnoreMode.GIT,
-        exclude: [
-          '*/*',
-          '!lib/container'
-        ]
+        exclude: ['*/*', '!lib/lambda'],
+        target: 'production',
       }),
+      architecture: lambda.Architecture.X86_64,
+      memorySize: 10240,
+      timeout: Duration.minutes(10),
+      vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
+      securityGroups: [securityGroup],
+      filesystem: lambda.FileSystem.fromEfsAccessPoint(ap, '/mnt/huggingface'),
       environment: {
+        BUCKET: bucket.bucketName,
         HOME: '/mnt/huggingface' /** instead of /root/.cache */
       },
-      logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'diffusion', logGroup }),
     })
-    containerDefinition.addMountPoints({ containerPath: '/mnt/huggingface', sourceVolume: volume.name, readOnly: false })
-
-    const stateMachine = new sfn.StateMachine(this, 'StateMachine', {
-      definition: new sfnt.EcsRunTask(this, 'Task', {
-        cluster,
-        launchTarget: new sfnt.EcsFargateLaunchTarget({ platformVersion: ecs.FargatePlatformVersion.VERSION1_4 }),
-        integrationPattern: sfn.IntegrationPattern.RUN_JOB,
-        taskDefinition,
-        inputPath: '$',
-        assignPublicIp: true,
-        securityGroups: [securityGroup],
-        containerOverrides: [{
-          containerDefinition,
-          command: sfn.JsonPath.listAt('$.commands'),
-        }],
-        timeout: Duration.minutes(15),
-      }),
-    })
+    bucket.grantReadWrite(imageHandler)
+    imageHandler.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        'elasticfilesystem:ClientRootAccess',
+        'elasticfilesystem:ClientWrite',
+        'elasticfilesystem:ClientMount',
+      ],
+      resources: [fs.fileSystemArn]
+    }))
 
     const imageRequestHandler = new NodejsFunction(this, 'image-request', {
       runtime: lambda.Runtime.NODEJS_16_X,
@@ -109,13 +92,13 @@ export class ServerlessDiffusionDiscordStack extends Stack {
         publicKey: this.node.tryGetContext('publicKey'),
         region: this.region,
         bucketName: bucket.bucketName,
-        stateMachineArn: stateMachine.stateMachineArn,
+        FunctionName: imageHandler.functionArn,
       } as ImageRequestHandlerEnv
     })
     imageRequestHandler.addToRolePolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
-      actions: ['states:StartExecution'],
-      resources: [stateMachine.stateMachineArn],
+      actions: ['lambda:InvokeFunction'],
+      resources: [imageHandler.functionArn],
     }))
     imageRequestHandler.addFunctionUrl({ authType: lambda.FunctionUrlAuthType.NONE })
 
