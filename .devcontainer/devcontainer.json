@@ -1,0 +1,40 @@
+{
+  "build": {
+    "dockerfile": "../lib/lambda/Dockerfile",
+    "target": "development",
+    "context": ".."
+  },
+  "workspaceFolder": "/workspaces/serverless-diffusion-discord",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "python.linting.enabled": true,
+        "python.linting.pylintEnabled": true,
+        "python.formatting.autopep8Path": "/usr/local/py-utils/bin/autopep8",
+        "python.formatting.blackPath": "/usr/local/py-utils/bin/black",
+        "python.formatting.yapfPath": "/usr/local/py-utils/bin/yapf",
+        "python.linting.banditPath": "/usr/local/py-utils/bin/bandit",
+        "python.linting.flake8Path": "/usr/local/py-utils/bin/flake8",
+        "python.linting.mypyPath": "/usr/local/py-utils/bin/mypy",
+        "python.linting.pycodestylePath": "/usr/local/py-utils/bin/pycodestyle",
+        "python.linting.pydocstylePath": "/usr/local/py-utils/bin/pydocstyle",
+        "python.linting.pylintPath": "/usr/local/py-utils/bin/pylint",
+        "python.analysis.extraPaths": [
+          "/var/task/python3.9"
+        ]
+      },
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance"
+      ]
+    }
+  },
+  "containerEnv": {
+    "EDITOR": "code --wait"
+  },
+  "hostRequirements": {
+    "cpus": 16,
+    "memory": "32gb"
+  }
+}
