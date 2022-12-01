@@ -36,5 +36,8 @@
   "hostRequirements": {
     "cpus": 16,
     "memory": "32gb"
-  }
+  },
+  "mounts": [
+    "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
+  ]
 }
