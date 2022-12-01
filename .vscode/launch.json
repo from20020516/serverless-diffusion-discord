@@ -1,0 +1,12 @@
+{
+    "configurations": [
+        {
+            "name": "debug: main",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/lib/lambda/debug-entrypoint.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        }
+    ]
+}

@@ -1,5 +1,6 @@
 import gc
 import json
+import os
 import requests
 from typing import TypedDict, Optional
 import tempfile
@@ -23,6 +24,7 @@ DEFAULT_NEGATIVE_PROMPT = ""  # negative_prompt
 DEFAULT_INIT_IMAGE = None  # path to initial image
 DEFAULT_STRENGTH = 0.5 # how strong the initial image should be noised [0.0, 1.0]
 DEFAULT_MASK = None  # mask of the region to inpaint on the initial image
+DEFAULT_OUTPUT = "output"  # output image name
 
 class Event(TypedDict):
     prompt: Optional[str]
@@ -40,8 +42,6 @@ class Event(TypedDict):
     strength: Optional[float]
     model: Optional[str]
     tokenizer: Optional[str]
-    s3_bucket_name: Optional[str]
-    s3_object_name: Optional[str]
 
 def imread_web(url):
     res = requests.get(url)
@@ -52,19 +52,14 @@ def imread_web(url):
         img = cv2.imread(fp.name)
     return img
 
-def handler(event: Event, context):
+def main(event: Event):
     gc.collect()
-    print(event)
-
-    prompt = event.setdefault('prompt', DEFAULT_PROMPT)
-    num_inference_steps = event.setdefault('num_inference_steps', DEFAULT_NUM_INFERENCE_STEPS)
-    guidance_scale = event.setdefault('guidance_scale', DEFAULT_GUIDANCE_SCALE)
     seed = event.setdefault('seed', DEFAULT_SEED)
     if seed is None:
         import random
         seed = random.randint(0,4294967295)
     np.random.seed(seed)
-    model = event.setdefault('model', DEFAULT_MODEL)
+    prompt = event.setdefault('prompt', DEFAULT_PROMPT)
 
     if event.setdefault('init_image', DEFAULT_INIT_IMAGE) is None:
         scheduler = LMSDiscreteScheduler(
@@ -83,7 +78,7 @@ def handler(event: Event, context):
         )
     engine = StableDiffusionEngine(
         scheduler = scheduler,
-        model = model,
+        model = event.setdefault('model', DEFAULT_MODEL),
         tokenizer = event.setdefault('tokenizer', DEFAULT_TOKENIZER),
     )
     image = engine(
@@ -92,14 +87,18 @@ def handler(event: Event, context):
         init_image = None if event.setdefault('init_image', DEFAULT_INIT_IMAGE) is None else imread_web(event['init_image']),
         mask = None if event.setdefault('mask', DEFAULT_MASK) is None else cv2.imread(imread_web(event['mask']), 0),
         strength = event.setdefault('strength', DEFAULT_STRENGTH),
-        num_inference_steps = num_inference_steps,
-        guidance_scale = guidance_scale,
+        num_inference_steps = event.setdefault('num_inference_steps', DEFAULT_NUM_INFERENCE_STEPS),
+        guidance_scale = event.setdefault('guidance_scale', DEFAULT_GUIDANCE_SCALE),
         eta = event.setdefault('eta', DEFAULT_ETA)
     )
     del engine
-
-    cv2.imwrite('/tmp/output.png', image)
-    if event['s3_object_name'] is not None:
-        ExtraArgs={'Metadata':{'json':json.dumps({'prompt':prompt,'seed':seed,'num_inference_steps':num_inference_steps,'guidance_scale':guidance_scale,'model':model})}}
-        boto3.client('s3').upload_file('/tmp/output.png', event['s3_bucket_name'], event['s3_object_name'], ExtraArgs=ExtraArgs)
     gc.collect()
+    return image
+
+def handler(event: Event, context):
+    bucketName = os.environ['BUCKET']
+    image = main(event)
+    cv2.imwrite('/tmp/output.png', image)
+    objectName = event.setdefault('output', DEFAULT_OUTPUT)
+    boto3.client('s3').upload_file('/tmp/output.png', bucketName, objectName)
+    return  {"statusCode": 200, "body": {"bucket": bucketName, "output": objectName}}
