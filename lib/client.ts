@@ -15,12 +15,11 @@ export const commandRegister = async (botToken: string) => {
       .addStringOption(option => option.setName('prompt').setDescription('prompt').setRequired(false))
       .addAttachmentOption(option => option.setName('init-image').setDescription('init-image').setRequired(false))
       .addStringOption(option => option.setName('model').setDescription('model').setRequired(false).addChoices(
-        { name: 'stable-diffusion', value: 'bes-dev/stable-diffusion-v1-4-openvino' },
-        { name: 'waifu-diffusion', value: 'ShadowPower/waifu-diffusion.openvino' }
+        { name: 'stable-diffusion', value: 'CompVis/stable-diffusion' },
+        { name: 'waifu-diffusion', value: 'hakurei/waifu-diffusion' }
       ))
       .addIntegerOption(option => option.setName('num-inference-steps').setDescription('num-inference-steps').setMaxValue(32).setMinValue(1).setRequired(false))
       .addIntegerOption(option => option.setName('guidance-scale').setDescription('guidance-scale').setMaxValue(15).setMinValue(0).setRequired(false))
-      .addAttachmentOption(option => option.setName('mask').setDescription('mask').setRequired(false))
       .addIntegerOption(option => option.setName('seed').setDescription('seed').setMaxValue(2 ** 32 / 2 - 1).setMinValue(0).setRequired(false))
       .setDMPermission(false)
   ]

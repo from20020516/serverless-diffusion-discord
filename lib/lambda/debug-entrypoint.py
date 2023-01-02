@@ -1,11 +1,11 @@
 from app import main, Event
-import cv2
-import time
+from datetime import datetime
 
 event: Event = {
     'prompt': 'hatsune miku',
-    'num_inference_steps': 20
+    'num_inference_steps': 20,
+    'safety': False,
 }
 
 image = main(event)
-cv2.imwrite('.images/{dt}.png'.format(dt=time.strftime("%Y%m%d%H%M%S")), image)
+image.save(f'./.images/{datetime.now().strftime("%Y_%m_%d-%I_%M_%S_%p")}.png')

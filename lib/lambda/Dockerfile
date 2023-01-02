@@ -5,7 +5,7 @@ WORKDIR /var/task
 RUN apt-get update && apt-get install -y libgl1 libglib2.0-0
 RUN python3 -m pip install \
     openvino==2022.1.0 \
-    diffusers==0.2.4 \
+    diffusers==0.11.1 \
     ftfy==6.1.1 \
     huggingface_hub==0.9.0 \
     numpy==1.19.5 \
@@ -13,7 +13,7 @@ RUN python3 -m pip install \
     scipy==1.9.0 \
     streamlit==1.12.0 \
     tqdm==4.64.0 \
-    transformers==4.16.2 \
+    transformers==4.25.1 \
     watchdog==2.1.9 \
     boto3
 
@@ -42,7 +42,7 @@ ADD https://github.com/aws/aws-lambda-runtime-interface-emulator/releases/latest
 COPY ./lib/lambda/entry.sh /
 RUN chmod 755 /usr/bin/aws-lambda-rie /entry.sh
 
-COPY ./lib/lambda/stable_diffusion_engine.py ./lib/lambda/app.py /var/task/
+COPY ./lib/lambda/app.py /var/task/
 
 ENTRYPOINT [ "/entry.sh" ]
 CMD [ "app.handler" ]
